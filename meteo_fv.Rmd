@@ -1,0 +1,233 @@
+---
+title: "Replicação de Francisco et. al 2019"
+author: "Mário Araujo Neto"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+
+
+
+
+```{r include=FALSE, warning=FALSE}
+#library(pscl)
+library(tidyverse)
+library(tidymodels)
+library(modelr) 
+library(dplyr)
+
+theme_set(theme_bw())
+
+dados <- read_csv("data/Outros_dados_conv.csv")
+data2 <- read_csv("data/Dia_conv.csv")
+
+dados <- dados %>%
+  mutate(data2)
+
+glimpse(dados)
+  
+ 
+```
+
+
+Inicialmente, estudamos a correlação das variáveis meteorológicas com a energia produzida pelos painéis fotovoltaicos. Pela análise visual das distribuições, verificamos que têm formato linear, sendo que a radiação e a umidade têm uma intensidade maior que a temperatura e velocidade do vento, com cauda à esquerda (radiação) e à direita (umidade). Entre as quatro grandezas meteorológicas estudadas, a umidade é a única com sinal negativo, isto é, quanto maior a umidde, menor a quantidade de energia produzida pelos painéis.
+
+Os coeficientes de correlação de Pearson confirmam que a umidade é a única grandeza cujo sinal do coeficiente de correlação apresenta sinal negativo. A intensidade da correlação entre energia e radiação é de 0,89, sendo a grandeza meteorológica com maior intensidade de correlação. A energia e a umidade apresentam coeficiente de correlação de -0,70, enquanto que o de energia e temperatura é 0,58. A energia e a velocidade do vento apresentam um baixo coeficiente de correlação (0,33).
+
+
+
+
+```{r}
+dados %>% 
+summarise(corr_radiacao = cor(radiacao, energia, method = "pearson"),
+          corr_umidade = cor(umidade, energia, method = "pearson"),
+          corr_temperatura = cor(temperatura, energia, method = "pearson"),
+          corr_velocidade = cor(velocidade, energia, method = "pearson"))
+```
+
+Seguindo com a reprodução do experimento, foram estimados os modelos de regressão linear simples para explicar a energia em função das quatro grandezas meteorológicas individualmente, que podem ser visualizados nas figuras abaixo:
+
+
+
+```{r}
+mod1 <- lm(energia ~ radiacao,
+            data = dados)
+mod1 %>% 
+    augment(dados) %>% 
+    ggplot(aes(x = radiacao)) +
+    geom_point(aes(y = energia)) +
+    geom_line(aes(y = .fitted), color = "blue")
+    ggsave("figura1_radiacao.pdf")
+mod2 <- lm(energia ~ umidade,
+            data = dados)
+mod2 %>% 
+    augment(dados) %>% 
+    ggplot(aes(x = umidade)) +
+    geom_point(aes(y = energia)) +
+    geom_line(aes(y = .fitted), color = "blue")
+    ggsave("figura1_umidade.pdf")
+    
+mod3 <- lm(energia ~ temperatura,
+            data = dados)
+mod3 %>% 
+    augment(dados) %>% 
+    ggplot(aes(x = temperatura)) +
+    geom_point(aes(y = energia)) +
+    geom_line(aes(y = .fitted), color = "blue")
+    ggsave("figura1_temperatura.pdf")
+    
+mod4 <- lm(energia ~ velocidade,
+            data = dados)
+mod4 %>% 
+    augment(dados) %>% 
+    ggplot(aes(x = velocidade)) +
+    geom_point(aes(y = energia)) +
+    geom_line(aes(y = .fitted), color = "blue")
+    ggsave("figura1_velocidade.pdf")
+
+tidy(mod1)
+tidy(mod2)
+tidy(mod3)
+tidy(mod4)
+
+glance(mod1)
+glance(mod2)
+glance(mod3)
+glance(mod4)
+```
+
+
+
+```{r}
+mod5 <- lm(energia ~ radiacao + temperatura,
+            data = dados)
+
+tidy(mod5)
+glance(mod5)
+```
+
+
+
+```{r}
+mod6 <- lm(energia ~ radiacao + umidade,
+            data = dados)
+
+tidy(mod6)
+glance(mod6)
+```
+
+
+Os modelos de regressão múltipla foram estimados partindo do modelo simples que explicava a geração de energia tendo como variável independente a radiação, uma vez que esta foi a variável com maior poder explicativo. Primeiro, acrescentando a temperatura ao modelo, o que levou o R2 de 0,7958 para 0,7944 (ajustado), o que representa uma singela diminuição na capacidade de explicação do modelo. 
+Posteriormente, foi estimado um modelo com as variáveis radiação e umidade, o que resultou em um R2 ajustado de 0,8131.O modelo pode ser escrito através da seguinte equação:
+
+$energia = 21,12 + 0,012*radiacao - 0,152*umidade$
+
+O modelo de regressão linear que foi estimado para explicar a energia em função da velocidade do vento na nossa amostra, evidenciou que existe um efeito muito pequeno desta variável meteorológica na capacidade de explicação da produção de energia fotovoltaica (R2=0,10) que, embora esteja presente e faça com que um aumento na velocidade do vento contribua para uma maior produção de energia, não é determinante na energia gerada através do sistema fotovoltaico, por isso, esta variável não foi adicionada ao modelo re regressão múltipla.
+
+
+Para seguir a sequência dos resultados apresentados no estudo, foi estimado um modelo com todas as variáveis meteorológicas e estudados os intervalos de confiança dos coeficientes de cada variável, a fim de inferir o impacto das grandezas na população. 
+
+
+
+```{r}
+mod7 <- lm(energia ~ radiacao + umidade + temperatura + velocidade,
+            data = dados)
+
+tidy(mod7)
+glance(mod7)
+```
+
+```{r}
+ic_mod7 = mod7 %>% 
+    tidy(conf.int = T, conf.level = .95)
+    #select(-p.value)
+
+ic_mod7
+```
+
+
+```{r}
+ ic_mod7 %>% 
+   filter(term == "radiacao") %>% 
+  
+  ggplot(aes(
+            ymin = conf.low,
+            y = estimate,
+            ymax = conf.high,
+            x = term
+        )) +
+        geom_linerange() +
+        geom_point(color = "coral", size = 3) +
+        labs(x = "", y = "") +
+        #ggtitle("Intervalo de Confiaça do coeficiente da radiação") +
+        coord_flip()
+        ggsave("figura2_radiacao.pdf")
+```
+
+
+```{r}
+ic_mod7 %>% 
+   filter(term == "umidade") %>% 
+  
+  ggplot(aes(
+            ymin = conf.low,
+            y = estimate,
+            ymax = conf.high,
+            x = term
+        )) +
+        geom_linerange() +
+        geom_point(color = "coral", size = 3) +
+        labs(x = "", y = "") +
+       # ggtitle("Intervalo de Confiaça do coeficiente da umidade") +
+        coord_flip()
+        ggsave("figura2_umidade.pdf")
+```
+
+```{r}
+ic_mod7 %>% 
+   filter(term == "temperatura") %>% 
+  
+  ggplot(aes(
+            ymin = conf.low,
+            y = estimate,
+            ymax = conf.high,
+            x = term
+        )) +
+        geom_linerange() +
+        geom_point(color = "coral", size = 3) +
+        labs(x = "", y = "") +
+        #ggtitle("Intervalo de Confiaça do coeficiente da temperatura") +
+        coord_flip()
+ggsave("figura2_temperatura.pdf")
+```
+
+```{r}
+ic_mod7 %>% 
+   filter(term == "velocidade") %>% 
+  
+  ggplot(aes(
+            ymin = conf.low,
+            y = estimate,
+            ymax = conf.high,
+            x = term
+        )) +
+        geom_linerange() +
+        geom_point(color = "coral", size = 3) +
+        labs(x = "", y = "") +
+       # ggtitle("Intervalo de Confiaça do coeficiente da velocidade do vento") +
+        coord_flip()
+ggsave("figura2_velocidade.pdf")
+```
+
+
+
+
+Os dados do nosso experimento, quando estimado um modelo de regressão multipla com todas as 4 grandezas meteorológicas, apontam que não há evidência clara da influência da velocidade do vento (IC95% [-0,70:0,14]) e da temperatura(IC95% [-0,30; 0,04]). 
+A umidade contribui negativamente para a produção de energia fotovoltaica. Na nossa amostra, o aumento de um ponto percentual de umidade, diminui 0,15W na energia gerada. Considerando que a umidade na cidade de Campina Grande é maior que 70% na maior parte do ano, esta variável apresenta grande relevância na produção de energia solar ao longo do ano uma vez que afeta negativamente (IC95%[-0,24;-0,11]) a produção. 
+A radiação solar apresentou-se no nosso estudo como a variável meteorológica que melhor explica a produção de energia fotovoltaica na cidade de Campina Grande (IC95%[0,011;0,014]), contribuindo de forma positiva, isto é, o aumento da radiação solar implica no aumento da produção de energia. Na nossa amostra, o aumento de 100kj/m2 provoca o aumento da produção de enenergia em 1,13kWh.
+
+
+
+
